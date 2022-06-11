@@ -12,7 +12,7 @@ cfg = edict()
 
 cfg.GPU_ID = '0'
 cfg.EXP = 'anet12'
-cfg.LR = '[0.0001]*8000'
+cfg.LR = '[0.0001]*100000'
 cfg.NUM_ITERS = len(eval(cfg.LR))
 cfg.NUM_CLASSES = 100
 cfg.MODAL = 'all'
@@ -22,7 +22,7 @@ cfg.DATA_PATH = './data/ActivityNet12'
 cfg.NUM_WORKERS = 8
 cfg.LAMBDA = 0.01
 cfg.R_EASY = 10
-cfg.R_HARD = 10
+cfg.R_HARD = 8
 cfg.m = 3
 cfg.M = 6
 cfg.TEST_FREQ = 500
@@ -36,10 +36,7 @@ cfg.UP_SCALE = 24
 cfg.GT_PATH = os.path.join(cfg.DATA_PATH, 'gt.json')
 cfg.SEED = 0
 cfg.FEATS_FPS = 25
-cfg.NUM_SEGMENTS = 60
-
-cfg.NUM_HEAD = 4
-
+cfg.NUM_SEGMENTS = 50
 cfg.CLASS_DICT = {'Archery': 0, 'Ballet': 1, 'Bathing dog': 2, 'Belly dance': 3, 'Breakdancing': 4, 'Brushing hair': 5,
                   'Brushing teeth': 6, 'Bungee jumping': 7, 'Cheerleading': 8, 'Chopping wood': 9, 'Clean and jerk': 10,
                   'Cleaning shoes': 11, 'Cleaning windows': 12, 'Cricket': 13, 'Cumbia': 14, 'Discus throw': 15,

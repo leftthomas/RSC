@@ -47,5 +47,3 @@ parser.add_argument("--alpha3", type=float, default=1)
 parser.add_argument('--alpha4', type=float, default=1)
 
 parser.add_argument("--AWM", type=str, default='BWA_fusion_dropout_feat_v2')
-
-parser.add_argument('--num_head', type=int, default=4, help='number of head for attention')

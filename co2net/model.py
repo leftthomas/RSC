@@ -1,5 +1,3 @@
-import math
-
 import numpy as np
 import torch
 import torch.nn as nn
@@ -9,38 +7,6 @@ import torch.nn.init as torch_init
 import model
 
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
-
-
-# Multi-head Cross Modal Attention
-class CMA(nn.Module):
-    def __init__(self, feat_dim, num_head):
-        super(CMA, self).__init__()
-        self.rgb_proj = nn.Parameter(torch.empty(num_head, feat_dim, feat_dim // num_head))
-        self.flow_proj = nn.Parameter(torch.empty(num_head, feat_dim, feat_dim // num_head))
-        self.atte = nn.Parameter(torch.empty(num_head, feat_dim // num_head, feat_dim // num_head))
-
-        nn.init.uniform_(self.rgb_proj, -math.sqrt(feat_dim), math.sqrt(feat_dim))
-        nn.init.uniform_(self.flow_proj, -math.sqrt(feat_dim), math.sqrt(feat_dim))
-        nn.init.uniform_(self.atte, -math.sqrt(feat_dim // num_head), math.sqrt(feat_dim // num_head))
-        self.num_head = num_head
-
-    def forward(self, rgb, flow):
-        n, l, d = rgb.shape
-        # [N, H, L, D/H]
-        o_rgb = F.normalize(torch.matmul(rgb.unsqueeze(dim=1), self.rgb_proj), dim=-1)
-        o_flow = F.normalize(torch.matmul(flow.unsqueeze(dim=1), self.flow_proj), dim=-1)
-        # [N, H, L, L]
-        atte = torch.matmul(torch.matmul(o_rgb, self.atte), o_flow.transpose(-1, -2))
-        rgb_atte = torch.softmax(atte, dim=-1)
-        flow_atte = torch.softmax(atte.transpose(-1, -2), dim=-1)
-
-        # [N, H, L, D/H]
-        e_rgb = F.gelu(torch.matmul(rgb_atte, o_rgb))
-        e_flow = F.gelu(torch.matmul(flow_atte, o_flow))
-        # [N, L, D]
-        f_rgb = torch.tanh(e_rgb.transpose(1, 2).reshape(n, l, -1) + rgb)
-        f_flow = torch.tanh(e_flow.transpose(1, 2).reshape(n, l, -1) + flow)
-        return f_rgb, f_flow
 
 
 def weights_init(m):
@@ -90,8 +56,6 @@ class CO2(torch.nn.Module):
         dropout_ratio = args['opt'].dropout_ratio
         reduce_ratio = args['opt'].reduce_ratio
 
-        self.cma = CMA(n_feature // 2, args['opt'].num_head)
-
         self.vAttn = getattr(model, args['opt'].AWM)(1024, args)
         self.fAttn = getattr(model, args['opt'].AWM)(1024, args)
 
@@ -113,10 +77,7 @@ class CO2(torch.nn.Module):
         self.apply(weights_init)
 
     def forward(self, inputs, is_training=True, **args):
-        rgb, flow = inputs[:, :, :1024], inputs[:, :, 1024:]
-        rgb, flow = self.cma(rgb, flow)
-        feat = torch.cat((rgb, flow), dim=-1).transpose(-2, -1)
-
+        feat = inputs.transpose(-1, -2)
         b, c, n = feat.size()
         # feat = self.feat_encoder(x)
         v_atn, vfeat = self.vAttn(feat[:, :1024, :], feat[:, 1024:, :])
@@ -291,13 +252,8 @@ class ANT_CO2(torch.nn.Module):
             if _kernel is not None else nn.Identity()
         self.apply(weights_init)
 
-        self.cma = CMA(n_feature // 2, args['opt'].num_head)
-
     def forward(self, inputs, is_training=True, **args):
-        rgb, flow = inputs[:, :, :1024], inputs[:, :, 1024:]
-        rgb, flow = self.cma(rgb, flow)
-        feat = torch.cat((rgb, flow), dim=-1).transpose(-2, -1)
-
+        feat = inputs.transpose(-1, -2)
         b, c, n = feat.size()
         # feat = self.feat_encoder(x)
         v_atn, vfeat = self.vAttn(feat[:, :1024, :], feat[:, 1024:, :])

@@ -1,47 +1,14 @@
 import argparse
-import math
 
+import data_loader
 import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-import data_loader
 from utils import init_weights
+
 from .tester import Tester
-
-
-# Multi-head Cross Modal Attention
-class CMA(nn.Module):
-    def __init__(self, feat_dim, num_head):
-        super(CMA, self).__init__()
-        self.rgb_proj = nn.Parameter(torch.empty(num_head, feat_dim, feat_dim // num_head))
-        self.flow_proj = nn.Parameter(torch.empty(num_head, feat_dim, feat_dim // num_head))
-        self.atte = nn.Parameter(torch.empty(num_head, feat_dim // num_head, feat_dim // num_head))
-
-        nn.init.uniform_(self.rgb_proj, -math.sqrt(feat_dim), math.sqrt(feat_dim))
-        nn.init.uniform_(self.flow_proj, -math.sqrt(feat_dim), math.sqrt(feat_dim))
-        nn.init.uniform_(self.atte, -math.sqrt(feat_dim // num_head), math.sqrt(feat_dim // num_head))
-        self.num_head = num_head
-
-    def forward(self, rgb, flow):
-        n, l, d = rgb.shape
-        # [N, H, L, D/H]
-        o_rgb = F.normalize(torch.matmul(rgb.unsqueeze(dim=1), self.rgb_proj), dim=-1)
-        o_flow = F.normalize(torch.matmul(flow.unsqueeze(dim=1), self.flow_proj), dim=-1)
-        # [N, H, L, L]
-        atte = torch.matmul(torch.matmul(o_rgb, self.atte), o_flow.transpose(-1, -2))
-        rgb_atte = torch.softmax(atte, dim=-1)
-        flow_atte = torch.softmax(atte.transpose(-1, -2), dim=-1)
-
-        # [N, H, L, D/H]
-        e_rgb = F.gelu(torch.matmul(rgb_atte, o_rgb))
-        e_flow = F.gelu(torch.matmul(flow_atte, o_flow))
-        # [N, L, D]
-        f_rgb = torch.tanh(e_rgb.transpose(1, 2).reshape(n, l, -1) + rgb)
-        f_flow = torch.tanh(e_flow.transpose(1, 2).reshape(n, l, -1) + flow)
-        return f_rgb, f_flow
 
 
 # ---------------------------------------------------------------------------- #
@@ -109,7 +76,6 @@ class LightningSystem(pl.LightningModule):
 
         parser.add_argument("--rand", type=str, default='false')
         parser.add_argument("--max_epochs", type=int, default=20)
-        parser.add_argument('--num_head', type=int, default=4, help='number of head for attention')
         return parser
 
     # --------------------------------- load data -------------------------------- #
@@ -238,7 +204,7 @@ class LightningSystem(pl.LightningModule):
             "loss_1": loss_1,
             "loss_2": loss_2,
             "loss_norm": loss_norm,
-            "loss_guide": loss_guide
+            "loss_guide": loss_guide,
         }
 
         return total_loss, tqdm_dict
@@ -311,19 +277,15 @@ class HAMNet(nn.Module):
         self.adl = ADL(drop_thres=args.drop_thres, drop_prob=args.drop_prob)
         self.apply(init_weights)
 
-        self.cma = CMA(n_feature // 2, args.num_head)
-
     def forward(self, inputs, include_min=False):
-        rgb, flow = inputs[:, :, :1024], inputs[:, :, 1024:]
-        rgb, flow = self.cma(rgb, flow)
-        x = torch.cat((rgb, flow), dim=-1).transpose(-2, -1)
-
+        x = inputs.transpose(-1, -2)
         x_cls = self.classifier(x)
         x_atn = self.attention(x)
 
         atn_supp, atn_drop = self.adl(x_cls, x_atn, include_min=include_min)
 
-        return x_cls.transpose(-1, -2), atn_supp.transpose(-1, -2), atn_drop.transpose(-1, -2), x_atn.transpose(-1, -2)
+        return x_cls.transpose(-1, -2), atn_supp.transpose(
+            -1, -2), atn_drop.transpose(-1, -2), x_atn.transpose(-1, -2)
 
 
 class ADL(nn.Module):
