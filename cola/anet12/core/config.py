@@ -12,7 +12,7 @@ cfg = edict()
 
 cfg.GPU_ID = '0'
 cfg.EXP = 'anet12'
-cfg.LR = '[0.0001]*100000'
+cfg.LR = '[0.0001]*8000'
 cfg.NUM_ITERS = len(eval(cfg.LR))
 cfg.NUM_CLASSES = 100
 cfg.MODAL = 'all'
