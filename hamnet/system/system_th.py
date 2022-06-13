@@ -1,14 +1,40 @@
 import argparse
 
-import data_loader
 import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from utils import init_weights
 
+import data_loader
+from utils import init_weights
 from .tester import Tester
+
+
+#  Local Response Consistency
+class LRC(nn.Module):
+    def __init__(self, feat_dim, hidden_dim):
+        super(LRC, self).__init__()
+        # projection head
+        self.proj = nn.Sequential(nn.Conv1d(feat_dim, hidden_dim, 1), nn.ReLU(inplace=True),
+                                  nn.Conv1d(hidden_dim, feat_dim, 1), nn.ReLU(inplace=True))
+
+    def forward(self, feat):
+        # [N, D, L]
+        x = self.proj(feat)
+        return x
+
+
+def local_response_loss(rgb, flow, num_block):
+    n, d, l = rgb.shape
+    # [N, B, L/B, D]
+    rgb = rgb.transpose(-1, -2).reshape(n, num_block, -1, d)
+    flow = flow.transpose(-1, -2).reshape(n, num_block, -1, d)
+    rgb, flow = F.normalize(rgb, dim=-1), F.normalize(flow, dim=-1)
+    # [N, B, L/B, L/B]
+    rgb_sim = torch.matmul(rgb, rgb.transpose(-1, -2))
+    flow_sim = torch.matmul(flow, flow.transpose(-1, -2))
+    return F.mse_loss(rgb_sim, flow_sim)
 
 
 # ---------------------------------------------------------------------------- #
@@ -77,6 +103,8 @@ class LightningSystem(pl.LightningModule):
                             default=[0.1, 0.9, 10])
         parser.add_argument("--rand", type=str, default='false')
         parser.add_argument("--max_epochs", type=int, default=100)
+        parser.add_argument("--hidden_dim", type=int, default=512)
+        parser.add_argument("--num_block", type=int, default=5)
         return parser
 
     # --------------------------------- load data -------------------------------- #
@@ -150,7 +178,7 @@ class LightningSystem(pl.LightningModule):
         """ Total loss funtion """
         features, labels, segm, vid_name, _ = batch
 
-        element_logits, atn_supp, atn_drop, element_atn = self.net(features)
+        element_logits, atn_supp, atn_drop, element_atn, rgb, flow = self.net(features)
 
         element_logits_supp = self._multiply(element_logits, atn_supp)
 
@@ -201,9 +229,12 @@ class LightningSystem(pl.LightningModule):
         loss_guide = (1 - element_atn -
                       element_logits.softmax(-1)[..., [-1]]).abs().mean()
 
+        # local response consistency loss
+        lrc_loss = local_response_loss(rgb, flow, self.hparams.num_block)
+
         # total loss
         total_loss = (self.hparams.lm_1 * loss_1 + self.hparams.lm_2 * loss_2 +
-                      self.hparams.alpha * loss_norm +
+                      self.hparams.alpha * loss_norm + lrc_loss +
                       self.hparams.beta * loss_guide)
         tqdm_dict = {
             "loss_train": total_loss,
@@ -211,6 +242,7 @@ class LightningSystem(pl.LightningModule):
             "loss_2": loss_2,
             "loss_norm": loss_norm,
             "loss_guide": loss_guide,
+            'loss_lrc': lrc_loss
         }
 
         return total_loss, tqdm_dict
@@ -275,15 +307,23 @@ class HAMNet(nn.Module):
         self.adl = ADL(drop_thres=args.drop_thres, drop_prob=args.drop_prob)
         self.apply(init_weights)
 
+        self.rgb_lrc = LRC(n_feature // 2, args.hidden_dim)
+        self.flow_lrc = LRC(n_feature // 2, args.hidden_dim)
+
     def forward(self, inputs, include_min=False):
         x = inputs.transpose(-1, -2)
+        rgb, flow = x[:, :1024, :], x[:, 1024:, :]
+        rgb = self.rgb_lrc(rgb)
+        # flow = self.flow_lrc(flow)
+        x = torch.cat((rgb, flow), dim=1)
+
         x_cls = self.classifier(x)
         x_atn = self.attention(x)
 
         atn_supp, atn_drop = self.adl(x_cls, x_atn, include_min=include_min)
 
         return x_cls.transpose(-1, -2), atn_supp.transpose(
-            -1, -2), atn_drop.transpose(-1, -2), x_atn.transpose(-1, -2)
+            -1, -2), atn_drop.transpose(-1, -2), x_atn.transpose(-1, -2), rgb, flow
 
 
 class ADL(nn.Module):
