@@ -37,6 +37,10 @@ cfg.GT_PATH = os.path.join(cfg.DATA_PATH, 'gt.json')
 cfg.SEED = 0
 cfg.FEATS_FPS = 25
 cfg.NUM_SEGMENTS = 50
+
+cfg.HIDDEN_DIM = 512
+cfg.NUM_BLOCK = 5
+
 cfg.CLASS_DICT = {'Archery': 0, 'Ballet': 1, 'Bathing dog': 2, 'Belly dance': 3, 'Breakdancing': 4, 'Brushing hair': 5,
                   'Brushing teeth': 6, 'Bungee jumping': 7, 'Cheerleading': 8, 'Chopping wood': 9, 'Clean and jerk': 10,
                   'Cleaning shoes': 11, 'Cleaning windows': 12, 'Cricket': 13, 'Cumbia': 14, 'Discus throw': 15,

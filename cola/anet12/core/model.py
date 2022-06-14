@@ -9,6 +9,20 @@ import torch.nn as nn
 from scipy import ndimage
 
 
+#  Local Response Consistency
+class LRC(nn.Module):
+    def __init__(self, feat_dim, hidden_dim):
+        super(LRC, self).__init__()
+        # projection head
+        self.proj = nn.Sequential(nn.Conv1d(feat_dim, hidden_dim, 1), nn.ReLU(inplace=True),
+                                  nn.Conv1d(hidden_dim, feat_dim, 1), nn.ReLU(inplace=True))
+
+    def forward(self, feat):
+        # [N, D, L]
+        x = self.proj(feat)
+        return x
+
+
 # (a) Feature Embedding and (b) Actionness Modeling
 class Actionness_Module(nn.Module):
     def __init__(self, len_feature, num_classes):
@@ -58,6 +72,9 @@ class CoLA(nn.Module):
         self.M = cfg.M
 
         self.dropout = nn.Dropout(p=0.6)
+
+        self.lrc = LRC(cfg.FEATS_DIM // 2, cfg.HIDDEN_DIM)
+        self.num_block = cfg.NUM_BLOCK
 
     def select_topk_embeddings(self, scores, embeddings, k):
         _, idx_DESC = scores.sort(descending=True, dim=1)
@@ -110,6 +127,11 @@ class CoLA(nn.Module):
         k_easy = num_segments // self.r_easy
         k_hard = num_segments // self.r_hard
 
+        x = x.transpose(-1, -2)
+        rgb, flow = x[:, :1024, :], x[:, 1024:, :]
+        rgb = self.lrc(rgb)
+        x = torch.cat((rgb, flow), dim=1).transpose(-1, -2)
+
         embeddings, cas, actionness = self.actionness_module(x)
 
         easy_act, easy_bkg = self.easy_snippets_mining(actionness, embeddings, k_easy)
@@ -121,7 +143,10 @@ class CoLA(nn.Module):
             'EA': easy_act,
             'EB': easy_bkg,
             'HA': hard_act,
-            'HB': hard_bkg
+            'HB': hard_bkg,
+            'RGB': rgb,
+            'FLOW': flow,
+            'NUM_BLOCK': self.num_block
         }
 
         return video_scores, contrast_pairs, actionness, cas
