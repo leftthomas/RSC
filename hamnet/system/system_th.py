@@ -307,14 +307,12 @@ class HAMNet(nn.Module):
         self.adl = ADL(drop_thres=args.drop_thres, drop_prob=args.drop_prob)
         self.apply(init_weights)
 
-        self.rgb_lrc = LRC(n_feature // 2, args.hidden_dim)
-        self.flow_lrc = LRC(n_feature // 2, args.hidden_dim)
+        self.lrc = LRC(n_feature // 2, args.hidden_dim)
 
     def forward(self, inputs, include_min=False):
         x = inputs.transpose(-1, -2)
         rgb, flow = x[:, :1024, :], x[:, 1024:, :]
-        rgb = self.rgb_lrc(rgb)
-        # flow = self.flow_lrc(flow)
+        rgb = self.lrc(rgb)
         x = torch.cat((rgb, flow), dim=1)
 
         x_cls = self.classifier(x)
