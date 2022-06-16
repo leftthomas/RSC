@@ -46,4 +46,7 @@ parser.add_argument("--alpha2", type=float, default=0.8)
 parser.add_argument("--alpha3", type=float, default=1)
 parser.add_argument('--alpha4', type=float, default=1)
 
+parser.add_argument("--hidden_dim", type=int, default=512)
+parser.add_argument("--num_block", type=int, default=5)
+
 parser.add_argument("--AWM", type=str, default='BWA_fusion_dropout_feat_v2')

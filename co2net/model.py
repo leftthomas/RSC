@@ -9,6 +9,34 @@ import model
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
 
+#  Local Response Consistency
+class LRC(nn.Module):
+    def __init__(self, feat_dim, hidden_dim):
+        super(LRC, self).__init__()
+        # projection head
+        self.proj = nn.Sequential(nn.Conv1d(feat_dim, hidden_dim, 1), nn.ReLU(inplace=True),
+                                  nn.Conv1d(hidden_dim, feat_dim, 1), nn.ReLU(inplace=True))
+
+    def forward(self, feat):
+        # [N, D, L]
+        x = self.proj(feat)
+        return x
+
+
+def local_response_loss(rgb, flow, num_block):
+    n, d, l = rgb.shape
+    # [N, B, L/B, D]
+    rgb = rgb.transpose(-1, -2).reshape(n, num_block, -1, d)
+    flow = flow.transpose(-1, -2).reshape(n, num_block, -1, d)
+    # [N, B, D]
+    rgb, flow = torch.mean(rgb, dim=-2), torch.mean(flow, dim=-2)
+    rgb, flow = F.normalize(rgb, dim=-1), F.normalize(flow, dim=-1)
+    # [N, B, B]
+    rgb_sim = torch.matmul(rgb, rgb.transpose(-1, -2))
+    flow_sim = torch.matmul(flow, flow.transpose(-1, -2))
+    return F.mse_loss(rgb_sim, flow_sim)
+
+
 def weights_init(m):
     classname = m.__class__.__name__
     if classname.find('Conv') != -1 or classname.find('Linear') != -1:
@@ -76,10 +104,14 @@ class CO2(torch.nn.Module):
 
         self.apply(weights_init)
 
+        self.lrc = LRC(n_feature // 2, args['opt'].hidden_dim)
+
     def forward(self, inputs, is_training=True, **args):
-        feat = inputs.transpose(-1, -2)
-        b, c, n = feat.size()
-        # feat = self.feat_encoder(x)
+        x = inputs.transpose(-1, -2)
+        rgb, flow = x[:, :1024, :], x[:, 1024:, :]
+        rgb = self.lrc(rgb)
+        feat = torch.cat((rgb, flow), dim=1)
+
         v_atn, vfeat = self.vAttn(feat[:, :1024, :], feat[:, 1024:, :])
         f_atn, ffeat = self.fAttn(feat[:, 1024:, :], feat[:, :1024, :])
         x_atn = (f_atn + v_atn) / 2
@@ -90,7 +122,7 @@ class CO2(torch.nn.Module):
         # fg_mask, bg_mask,dropped_fg_mask = self.cadl(x_cls, x_atn, include_min=True)
 
         return {'feat': nfeat.transpose(-1, -2), 'cas': x_cls.transpose(-1, -2), 'attn': x_atn.transpose(-1, -2),
-                'v_atn': v_atn.transpose(-1, -2), 'f_atn': f_atn.transpose(-1, -2)}
+                'v_atn': v_atn.transpose(-1, -2), 'f_atn': f_atn.transpose(-1, -2), 'rgb': rgb, 'flow': flow}
         # ,fg_mask.transpose(-1, -2), bg_mask.transpose(-1, -2),dropped_fg_mask.transpose(-1, -2)
         # return att_sigmoid,att_logit, feat_emb, bag_logit, instance_logit
 
@@ -138,10 +170,13 @@ class CO2(torch.nn.Module):
         f_loss_guide = (1 - f_atn -
                         element_logits.softmax(-1)[..., [-1]]).abs().mean()
 
+        # local response consistency loss
+        lrc_loss = local_response_loss(outputs['rgb'], outputs['flow'], self.hparams.num_block)
+
         # total loss
         total_loss = (loss_mil_orig.mean() + loss_mil_supp.mean() +
                       args['opt'].alpha3 * loss_3_supp_Contrastive +
-                      args['opt'].alpha4 * mutual_loss +
+                      args['opt'].alpha4 * mutual_loss + lrc_loss +
                       args['opt'].alpha1 * (loss_norm + v_loss_norm + f_loss_norm) / 3 +
                       args['opt'].alpha2 * (loss_guide + v_loss_guide + f_loss_guide) / 3)
 
@@ -252,10 +287,15 @@ class ANT_CO2(torch.nn.Module):
             if _kernel is not None else nn.Identity()
         self.apply(weights_init)
 
+        self.lrc = LRC(n_feature // 2, args['opt'].hidden_dim)
+
     def forward(self, inputs, is_training=True, **args):
-        feat = inputs.transpose(-1, -2)
-        b, c, n = feat.size()
-        # feat = self.feat_encoder(x)
+
+        x = inputs.transpose(-1, -2)
+        rgb, flow = x[:, :1024, :], x[:, 1024:, :]
+        rgb = self.lrc(rgb)
+        feat = torch.cat((rgb, flow), dim=1)
+
         v_atn, vfeat = self.vAttn(feat[:, :1024, :], feat[:, 1024:, :])
         f_atn, ffeat = self.fAttn(feat[:, 1024:, :], feat[:, :1024, :])
         x_atn = (f_atn + v_atn) / 2
@@ -269,7 +309,7 @@ class ANT_CO2(torch.nn.Module):
         # fg_mask, bg_mask,dropped_fg_mask = self.cadl(x_cls, x_atn, include_min=True)
 
         return {'feat': nfeat.transpose(-1, -2), 'cas': x_cls.transpose(-1, -2), 'attn': x_atn.transpose(-1, -2),
-                'v_atn': v_atn.transpose(-1, -2), 'f_atn': f_atn.transpose(-1, -2)}
+                'v_atn': v_atn.transpose(-1, -2), 'f_atn': f_atn.transpose(-1, -2), 'rgb': rgb, 'flow': flow}
         # ,fg_mask.transpose(-1, -2), bg_mask.transpose(-1, -2),dropped_fg_mask.transpose(-1, -2)
         # return att_sigmoid,att_logit, feat_emb, bag_logit, instance_logit
 
@@ -317,9 +357,12 @@ class ANT_CO2(torch.nn.Module):
         f_loss_guide = (1 - f_atn -
                         element_logits.softmax(-1)[..., [-1]]).abs().mean()
 
+        # local response consistency loss
+        lrc_loss = local_response_loss(outputs['rgb'], outputs['flow'], self.hparams.num_block)
+
         # total loss
         total_loss = (loss_mil_orig.mean() + loss_mil_supp.mean() + args[
-            'opt'].alpha3 * loss_3_supp_Contrastive + mutual_loss +
+            'opt'].alpha3 * loss_3_supp_Contrastive + mutual_loss + lrc_loss +
                       args['opt'].alpha1 * (loss_norm + v_loss_norm + f_loss_norm) / 3 +
                       args['opt'].alpha2 * (loss_guide + v_loss_guide + f_loss_guide) / 3)
 
