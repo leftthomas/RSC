@@ -28,10 +28,8 @@ def local_response_loss(rgb, flow, num_block):
     # [N, B, L/B, D]
     rgb = rgb.transpose(-1, -2).reshape(n, num_block, -1, d)
     flow = flow.transpose(-1, -2).reshape(n, num_block, -1, d)
-    # [N, B, D]
-    rgb, flow = torch.mean(rgb, dim=-2), torch.mean(flow, dim=-2)
     rgb, flow = F.normalize(rgb, dim=-1), F.normalize(flow, dim=-1)
-    # [N, B, B]
+    # [N, B, L/B, L/B]
     rgb_sim = torch.matmul(rgb, rgb.transpose(-1, -2))
     flow_sim = torch.matmul(flow, flow.transpose(-1, -2))
     return F.mse_loss(rgb_sim, flow_sim)
