@@ -171,7 +171,7 @@ class CO2(torch.nn.Module):
                         element_logits.softmax(-1)[..., [-1]]).abs().mean()
 
         # local response consistency loss
-        lrc_loss = local_response_loss(outputs['rgb'], outputs['flow'], self.hparams.num_block)
+        lrc_loss = local_response_loss(outputs['rgb'], outputs['flow'], args['opt'].num_block)
 
         # total loss
         total_loss = (loss_mil_orig.mean() + loss_mil_supp.mean() +
@@ -358,7 +358,7 @@ class ANT_CO2(torch.nn.Module):
                         element_logits.softmax(-1)[..., [-1]]).abs().mean()
 
         # local response consistency loss
-        lrc_loss = local_response_loss(outputs['rgb'], outputs['flow'], self.hparams.num_block)
+        lrc_loss = local_response_loss(outputs['rgb'], outputs['flow'], args['opt'].num_block)
 
         # total loss
         total_loss = (loss_mil_orig.mean() + loss_mil_supp.mean() + args[
