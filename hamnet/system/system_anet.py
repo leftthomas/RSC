@@ -76,6 +76,7 @@ class LightningSystem(pl.LightningModule):
 
         parser.add_argument("--rand", type=str, default='false')
         parser.add_argument("--max_epochs", type=int, default=20)
+        parser.add_argument("--num_region", type=int, default=4)
         return parser
 
     # --------------------------------- load data -------------------------------- #
@@ -147,7 +148,7 @@ class LightningSystem(pl.LightningModule):
         """ Total loss funtion """
         features, labels, segm, vid_name, _ = batch
 
-        element_logits, atn_supp, atn_drop, element_atn = self.net(features)
+        element_logits, atn_supp, atn_drop, element_atn, x_rgb, x_flow = self.net(features)
 
         element_logits_supp = self._multiply(element_logits, atn_supp)
 
@@ -195,9 +196,12 @@ class LightningSystem(pl.LightningModule):
         loss_guide = (1 - element_atn -
                       element_logits.softmax(-1)[..., [-1]]).abs().mean()
 
+        # rsc loss
+        loss_rsc = sim_loss(x_rgb, x_flow, self.hparams.num_region)
+
         # total loss
         total_loss = (self.hparams.lm_1 * loss_1 + self.hparams.lm_2 * loss_2 +
-                      self.hparams.alpha * loss_norm +
+                      self.hparams.alpha * loss_norm + loss_rsc +
                       self.hparams.beta * loss_guide)
         tqdm_dict = {
             "loss_train": total_loss,
@@ -205,6 +209,7 @@ class LightningSystem(pl.LightningModule):
             "loss_2": loss_2,
             "loss_norm": loss_norm,
             "loss_guide": loss_guide,
+            "loss_rsc": loss_rsc
         }
 
         return total_loss, tqdm_dict
@@ -276,16 +281,19 @@ class HAMNet(nn.Module):
                            if _kernel is not None else nn.Identity()))
         self.adl = ADL(drop_thres=args.drop_thres, drop_prob=args.drop_prob)
         self.apply(init_weights)
+        self.proj_net = ProjNet(n_feature // 2)
 
     def forward(self, inputs, include_min=False):
-        x = inputs.transpose(-1, -2)
+        x_rgb, x_flow = self.proj_net(inputs[:, :, :1024]), inputs[:, :, 1024:]
+        x = torch.cat((x_rgb, x_flow), dim=-1).transpose(-1, -2)
+
         x_cls = self.classifier(x)
         x_atn = self.attention(x)
 
         atn_supp, atn_drop = self.adl(x_cls, x_atn, include_min=include_min)
 
         return x_cls.transpose(-1, -2), atn_supp.transpose(
-            -1, -2), atn_drop.transpose(-1, -2), x_atn.transpose(-1, -2)
+            -1, -2), atn_drop.transpose(-1, -2), x_atn.transpose(-1, -2), x_rgb, x_flow
 
 
 class ADL(nn.Module):
@@ -311,3 +319,23 @@ class ADL(nn.Module):
         drop_mask = (x_atn < _thres).type_as(x) * x_atn
 
         return mask_imp, drop_mask
+
+
+class ProjNet(nn.Module):
+    def __init__(self, feat_dim):
+        super(ProjNet, self).__init__()
+        self.sequential = nn.Sequential(nn.Linear(feat_dim, feat_dim // 2), nn.ReLU(),
+                                        nn.Linear(feat_dim // 2, feat_dim), nn.ReLU())
+
+    def forward(self, x):
+        return self.sequential(x)
+
+
+def sim_loss(rgb, flow, num_region):
+    # [N, R, D]
+    rgb = torch.stack([F.normalize(x.mean(dim=1), dim=-1) for x in torch.chunk(rgb, chunks=num_region, dim=1)], dim=1)
+    flow = torch.stack([F.normalize(x.mean(dim=1), dim=-1) for x in torch.chunk(flow, chunks=num_region, dim=1)], dim=1)
+    # [N, R, R]
+    rgb_similar, flow_similar = torch.matmul(rgb, rgb.permute(0, 2, 1)), torch.matmul(flow, flow.permute(0, 2, 1))
+    loss_similar = torch.pairwise_distance(rgb_similar, flow_similar).mean()
+    return loss_similar

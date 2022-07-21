@@ -41,7 +41,7 @@ class Tester():
         if _label.sum() == 0:
             return
 
-        elem, _, _, element_atn = net(features)
+        elem, _, _, element_atn, _, _ = net(features)
 
         element_logits = elem * element_atn
 
