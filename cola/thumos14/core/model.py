@@ -37,6 +37,17 @@ class Actionness_Module(nn.Module):
         actionness = cas.sum(dim=2)
         return embeddings, cas, actionness
 
+
+class ProjNet(nn.Module):
+    def __init__(self, feat_dim):
+        super(ProjNet, self).__init__()
+        self.sequential = nn.Sequential(nn.Linear(feat_dim, feat_dim // 2), nn.ReLU(),
+                                        nn.Linear(feat_dim // 2, feat_dim), nn.ReLU())
+
+    def forward(self, x):
+        return self.sequential(x)
+
+
 # CoLA Pipeline
 class CoLA(nn.Module):
     def __init__(self, cfg):
@@ -55,6 +66,9 @@ class CoLA(nn.Module):
         self.M = cfg.M
 
         self.dropout = nn.Dropout(p=0.6)
+
+        self.proj_net = ProjNet(cfg.FEATS_DIM // 2)
+        self.num_region = cfg.NUM_REGION
 
     def select_topk_embeddings(self, scores, embeddings, k):
         _, idx_DESC = scores.sort(descending=True, dim=1)
@@ -103,6 +117,9 @@ class CoLA(nn.Module):
         return video_scores
 
     def forward(self, x):
+        x_rgb, x_flow = self.proj_net(x[:, :, :1024]), x[:, :, 1024:]
+        x = torch.cat((x_rgb, x_flow), dim=-1)
+
         num_segments = x.shape[1]
         k_easy = num_segments // self.r_easy
         k_hard = num_segments // self.r_hard
@@ -118,7 +135,10 @@ class CoLA(nn.Module):
             'EA': easy_act,
             'EB': easy_bkg,
             'HA': hard_act,
-            'HB': hard_bkg
+            'HB': hard_bkg,
+            'rgb': x_rgb,
+            'flow': x_flow,
+            'num_region': self.num_region
         }
 
         return video_scores, contrast_pairs, actionness, cas

@@ -5,6 +5,7 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class ActionLoss(nn.Module):
     def __init__(self):
@@ -62,12 +63,25 @@ class TotalLoss(nn.Module):
     def forward(self, video_scores, label, contrast_pairs):
         loss_cls = self.action_criterion(video_scores, label)
         loss_snico = self.snico_criterion(contrast_pairs)
-        loss_total = loss_cls + 0.01 * loss_snico
+        # rsc loss
+        loss_rsc = sim_loss(contrast_pairs['rgb'], contrast_pairs['flow'], contrast_pairs['num_region'])
+        loss_total = loss_cls + 0.01 * loss_snico + loss_rsc
 
         loss_dict = {
             'Loss/Action': loss_cls,
             'Loss/SniCo': loss_snico,
+            'Loss/RSC': loss_rsc,
             'Loss/Total': loss_total
         }
 
         return loss_total, loss_dict
+
+
+def sim_loss(rgb, flow, num_region):
+    # [N, R, D]
+    rgb = torch.stack([F.normalize(x.mean(dim=1), dim=-1) for x in torch.chunk(rgb, chunks=num_region, dim=1)], dim=1)
+    flow = torch.stack([F.normalize(x.mean(dim=1), dim=-1) for x in torch.chunk(flow, chunks=num_region, dim=1)], dim=1)
+    # [N, R, R]
+    rgb_similar, flow_similar = torch.matmul(rgb, rgb.permute(0, 2, 1)), torch.matmul(flow, flow.permute(0, 2, 1))
+    loss_similar = torch.pairwise_distance(rgb_similar, flow_similar).mean()
+    return loss_similar
