@@ -207,7 +207,7 @@ class LightningSystem(pl.LightningModule):
 
         # total loss
         total_loss = (self.hparams.lm_1 * loss_1 + self.hparams.lm_2 * loss_2 +
-                      self.hparams.alpha * loss_norm + loss_rsc +
+                      self.hparams.alpha * loss_norm + 0.2 * loss_rsc +
                       self.hparams.beta * loss_guide)
         tqdm_dict = {
             "loss_train": total_loss,
