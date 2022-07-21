@@ -2,14 +2,14 @@ from collections import defaultdict
 
 import numpy as np
 import torch
-from loguru import logger
-
 import utils
 from eval.eval_detection import ANETdetection
 from eval.utils_eval import getClassificationMAP
+from loguru import logger
 
 
 def get_cls_score(element_cls, dim=-2, rat=20, ind=None):
+
     topk_val, _ = torch.topk(element_cls,
                              k=max(1, int(element_cls.shape[-2] // rat)),
                              dim=-2)
@@ -41,7 +41,7 @@ class Tester():
         if _label.sum() == 0:
             return
 
-        elem, _, _, element_atn, _, _ = net(features)
+        elem, _, _, element_atn = net(features)
 
         element_logits = elem * element_atn
 

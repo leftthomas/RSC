@@ -35,11 +35,7 @@ cfg.UP_SCALE = 24
 cfg.GT_PATH = os.path.join(cfg.DATA_PATH, 'gt.json')
 cfg.SEED = 0
 cfg.FEATS_FPS = 25
-cfg.NUM_SEGMENTS = 500
-
-cfg.HIDDEN_DIM = 512
-cfg.NUM_BLOCK = 5
-
+cfg.NUM_SEGMENTS = 750
 cfg.CLASS_DICT = {'BaseballPitch': 0, 'BasketballDunk': 1, 'Billiards': 2,
                   'CleanAndJerk': 3, 'CliffDiving': 4, 'CricketBowling': 5,
                   'CricketShot': 6, 'Diving': 7, 'FrisbeeCatch': 8,

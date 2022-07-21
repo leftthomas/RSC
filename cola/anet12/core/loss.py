@@ -5,8 +5,6 @@
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-
 
 class ActionLoss(nn.Module):
     def __init__(self):
@@ -17,7 +15,6 @@ class ActionLoss(nn.Module):
         label = label / torch.sum(label, dim=1, keepdim=True)
         loss = self.bce_criterion(video_scores, label)
         return loss
-
 
 class SniCoLoss(nn.Module):
     def __init__(self):
@@ -39,6 +36,7 @@ class SniCoLoss(nn.Module):
         return loss
 
     def forward(self, contrast_pairs):
+
         HA_refinement = self.NCE(
             torch.mean(contrast_pairs['HA'], 1),
             torch.mean(contrast_pairs['EA'], 1),
@@ -55,18 +53,6 @@ class SniCoLoss(nn.Module):
         return loss
 
 
-def local_response_loss(rgb, flow, num_block):
-    n, d, l = rgb.shape
-    # [N, B, L/B, D]
-    rgb = rgb.transpose(-1, -2).reshape(n, num_block, -1, d)
-    flow = flow.transpose(-1, -2).reshape(n, num_block, -1, d)
-    rgb, flow = F.normalize(rgb, dim=-1), F.normalize(flow, dim=-1)
-    # [N, B, L/B, L/B]
-    rgb_sim = torch.matmul(rgb, rgb.transpose(-1, -2))
-    flow_sim = torch.matmul(flow, flow.transpose(-1, -2))
-    return F.mse_loss(rgb_sim, flow_sim)
-
-
 class TotalLoss(nn.Module):
     def __init__(self):
         super(TotalLoss, self).__init__()
@@ -76,16 +62,12 @@ class TotalLoss(nn.Module):
     def forward(self, video_scores, label, contrast_pairs):
         loss_cls = self.action_criterion(video_scores, label)
         loss_snico = self.snico_criterion(contrast_pairs)
-
-        # local response consistency loss
-        loss_lrc = local_response_loss(contrast_pairs['RGB'], contrast_pairs['FLOW'], contrast_pairs['NUM_BLOCK'])
-
-        loss_total = loss_cls + 0.005 * loss_snico + loss_lrc
+        # loss_total = loss_cls
+        loss_total = loss_cls + 0.005 * loss_snico
 
         loss_dict = {
             'Loss/Action': loss_cls,
             'Loss/SniCo': loss_snico,
-            'Loss/LRC': loss_lrc,
             'Loss/Total': loss_total
         }
 
