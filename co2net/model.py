@@ -9,6 +9,26 @@ import model
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
 
+class ProjNet(nn.Module):
+    def __init__(self, feat_dim):
+        super(ProjNet, self).__init__()
+        self.sequential = nn.Sequential(nn.Linear(feat_dim, feat_dim // 2), nn.ReLU(),
+                                        nn.Linear(feat_dim // 2, feat_dim), nn.ReLU())
+
+    def forward(self, x):
+        return self.sequential(x)
+
+
+def sim_loss(rgb, flow, num_region):
+    # [N, R, D]
+    rgb = torch.stack([F.normalize(x.mean(dim=1), dim=-1) for x in torch.chunk(rgb, chunks=num_region, dim=1)], dim=1)
+    flow = torch.stack([F.normalize(x.mean(dim=1), dim=-1) for x in torch.chunk(flow, chunks=num_region, dim=1)], dim=1)
+    # [N, R, R]
+    rgb_similar, flow_similar = torch.matmul(rgb, rgb.permute(0, 2, 1)), torch.matmul(flow, flow.permute(0, 2, 1))
+    loss_similar = torch.pairwise_distance(rgb_similar, flow_similar).mean()
+    return loss_similar
+
+
 def weights_init(m):
     classname = m.__class__.__name__
     if classname.find('Conv') != -1 or classname.find('Linear') != -1:
@@ -75,7 +95,12 @@ class CO2(torch.nn.Module):
 
         self.apply(weights_init)
 
+        self.proj_net = ProjNet(mid_dim)
+
     def forward(self, inputs, is_training=True, **args):
+        x_rgb, x_flow = self.proj_net(inputs[:, :, :1024]), inputs[:, :, 1024:]
+        inputs = torch.cat((x_rgb, x_flow), dim=-1)
+
         feat = inputs.transpose(-1, -2)
         b, c, n = feat.size()
         # feat = self.feat_encoder(x)
@@ -89,7 +114,7 @@ class CO2(torch.nn.Module):
         # fg_mask, bg_mask,dropped_fg_mask = self.cadl(x_cls, x_atn, include_min=True)
 
         return {'feat': nfeat.transpose(-1, -2), 'cas': x_cls.transpose(-1, -2), 'attn': x_atn.transpose(-1, -2),
-                'v_atn': v_atn.transpose(-1, -2), 'f_atn': f_atn.transpose(-1, -2)}
+                'v_atn': v_atn.transpose(-1, -2), 'f_atn': f_atn.transpose(-1, -2), 'rgb': x_rgb, 'flow': x_flow}
         # ,fg_mask.transpose(-1, -2), bg_mask.transpose(-1, -2),dropped_fg_mask.transpose(-1, -2)
         # return att_sigmoid,att_logit, feat_emb, bag_logit, instance_logit
 
@@ -138,10 +163,13 @@ class CO2(torch.nn.Module):
         f_loss_guide = (1 - f_atn -
                         element_logits.softmax(-1)[..., [-1]]).abs().mean()
 
+        # rsc loss
+        loss_rsc = sim_loss(outputs['rgb'], outputs['flow'], args['opt'].num_region)
+
         # total loss
         total_loss = (loss_mil_orig.mean() + loss_mil_supp.mean() +
                       args['opt'].alpha3 * loss_3_supp_Contrastive +
-                      args['opt'].alpha4 * mutual_loss +
+                      args['opt'].alpha4 * mutual_loss + loss_rsc +
                       args['opt'].alpha1 * (loss_norm + v_loss_norm + f_loss_norm) / 3 +
                       args['opt'].alpha2 * (loss_guide + v_loss_guide + f_loss_guide) / 3)
 
@@ -252,7 +280,12 @@ class ANT_CO2(torch.nn.Module):
             if _kernel is not None else nn.Identity()
         self.apply(weights_init)
 
+        self.proj_net = ProjNet(mid_dim)
+
     def forward(self, inputs, is_training=True, **args):
+        x_rgb, x_flow = self.proj_net(inputs[:, :, :1024]), inputs[:, :, 1024:]
+        inputs = torch.cat((x_rgb, x_flow), dim=-1)
+
         feat = inputs.transpose(-1, -2)
         b, c, n = feat.size()
         # feat = self.feat_encoder(x)
@@ -269,7 +302,7 @@ class ANT_CO2(torch.nn.Module):
         # fg_mask, bg_mask,dropped_fg_mask = self.cadl(x_cls, x_atn, include_min=True)
 
         return {'feat': nfeat.transpose(-1, -2), 'cas': x_cls.transpose(-1, -2), 'attn': x_atn.transpose(-1, -2),
-                'v_atn': v_atn.transpose(-1, -2), 'f_atn': f_atn.transpose(-1, -2)}
+                'v_atn': v_atn.transpose(-1, -2), 'f_atn': f_atn.transpose(-1, -2), 'rgb': x_rgb, 'flow': x_flow}
         # ,fg_mask.transpose(-1, -2), bg_mask.transpose(-1, -2),dropped_fg_mask.transpose(-1, -2)
         # return att_sigmoid,att_logit, feat_emb, bag_logit, instance_logit
 
@@ -318,9 +351,12 @@ class ANT_CO2(torch.nn.Module):
         f_loss_guide = (1 - f_atn -
                         element_logits.softmax(-1)[..., [-1]]).abs().mean()
 
+        # rsc loss
+        loss_rsc = sim_loss(outputs['rgb'], outputs['flow'], args['opt'].num_region)
+
         # total loss
         total_loss = (loss_mil_orig.mean() + loss_mil_supp.mean() + args[
-            'opt'].alpha3 * loss_3_supp_Contrastive + mutual_loss +
+            'opt'].alpha3 * loss_3_supp_Contrastive + mutual_loss + loss_rsc +
                       args['opt'].alpha1 * (loss_norm + v_loss_norm + f_loss_norm) / 3 +
                       args['opt'].alpha2 * (loss_guide + v_loss_guide + f_loss_guide) / 3)
 
