@@ -356,7 +356,7 @@ class ANT_CO2(torch.nn.Module):
 
         # total loss
         total_loss = (loss_mil_orig.mean() + loss_mil_supp.mean() + args[
-            'opt'].alpha3 * loss_3_supp_Contrastive + mutual_loss + loss_rsc +
+            'opt'].alpha3 * loss_3_supp_Contrastive + mutual_loss + 0.01 * loss_rsc +
                       args['opt'].alpha1 * (loss_norm + v_loss_norm + f_loss_norm) / 3 +
                       args['opt'].alpha2 * (loss_guide + v_loss_guide + f_loss_guide) / 3)
 
