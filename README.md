@@ -1,7 +1,7 @@
-# LRC
+# RSC
 
-A PyTorch implementation of LRC based on the paper
-[Weakly-supervised Temporal Action Localization with Local Response Consistency]().
+A PyTorch implementation of RSC based on the paper
+[Weakly-supervised Temporal Action Localization with Regional Similarity Consistency]().
 
 ![Network Architecture](structure.png)
 
@@ -24,7 +24,7 @@ python main.py --test --ckpt [checkpoint_path]
 
 ## Benchmarks
 
-The models are trained on one NVIDIA GeForce TITAN X GPU (12G). All the hyper-parameters are the default values.
+The models are trained on one NVIDIA GeForce GTX 1080 Ti (11G). All the hyper-parameters are the default values.
 
 ### THUMOS14
 
@@ -49,87 +49,41 @@ The models are trained on one NVIDIA GeForce TITAN X GPU (12G). All the hyper-pa
 <tbody>
   <tr>
     <td align="center"><a href="https://github.com/asrafulashiq/hamnet">HAM-Net</a></td>
-    <td align="center">66.8</td>
-    <td align="center">60.9</td>
-    <td align="center">52.2</td>
-    <td align="center">42.9</td>
-    <td align="center">33.4</td>
-    <td align="center">22.7</td>
-    <td align="center">12.2</td>
-    <td align="center">41.6</td>
-    <td align="center"><a href="https://1drv.ms/u/s!AtyHkt-GdJtIilloJ6Uo867V9yr8?e=aWvLyY">OneDrive</a></td>
+    <td align="center">66.9</td>
+    <td align="center">60.2</td>
+    <td align="center">51.0</td>
+    <td align="center">42.0</td>
+    <td align="center">31.7</td>
+    <td align="center">22.1</td>
+    <td align="center">12.0</td>
+    <td align="center">40.9</td>
+    <td align="center"><a href="https://1drv.ms/u/s!AtyHkt-GdJtIiwSrpPF3F94wOr4F?e=2bSjyz">OneDrive</a></td>
   </tr>
   <tr>
     <td align="center"><a href="https://github.com/zhang-can/CoLA">CoLA</a></td>
-    <td align="center">67.5</td>
-    <td align="center">60.6</td>
-    <td align="center">51.9</td>
-    <td align="center">43.2</td>
-    <td align="center">34.2</td>
-    <td align="center">24.2</td>
-    <td align="center">13.9</td>
-    <td align="center">42.2</td>
-    <td align="center"><a href="https://1drv.ms/u/s!AtyHkt-GdJtIilhzTkTD-uZvy4ya?e=PFdCWR">OneDrive</a></td>
+    <td align="center">67.2</td>
+    <td align="center">61.5</td>
+    <td align="center">52.9</td>
+    <td align="center">43.9</td>
+    <td align="center">34.8</td>
+    <td align="center">24.9</td>
+    <td align="center">13.0</td>
+    <td align="center">42.6</td>
+    <td align="center"><a href="https://1drv.ms/u/s!AtyHkt-GdJtIiwXQS-tauh7E-0yv?e=ukztyT">OneDrive</a></td>
   </tr>
   <tr>
     <td align="center"><a href="https://github.com/harlanhong/MM2021-CO2-Net">CO<sub>2</sub>-Net</a></td>
-    <td align="center">70.8</td>
-    <td align="center">64.7</td>
-    <td align="center">55.7</td>
-    <td align="center">46.8</td>
-    <td align="center">39.8</td>
-    <td align="center">26.5</td>
-    <td align="center">13.8</td>
-    <td align="center">45.4</td>
-    <td align="center"><a href="https://1drv.ms/u/s!AtyHkt-GdJtIilfZvzmjkg9BcFTx?e=0ptemo">OneDrive</a></td>
+    <td align="center">70.6</td>
+    <td align="center">64.2</td>
+    <td align="center">55.9</td>
+    <td align="center">47.7</td>
+    <td align="center">38.9</td>
+    <td align="center">26.0</td>
+    <td align="center">13.6</td>
+    <td align="center">45.3</td>
+    <td align="center"><a href="https://1drv.ms/u/s!AtyHkt-GdJtIiwNl9__LaTp-qn9f?e=l4uAGe">OneDrive</a></td>
   </tr>
 </tbody>
 </table>
 
 mAP@AVG is the average mAP under the thresholds 0.1:0.1:0.7.
-
-### ActivityNet
-
-<table>
-<thead>
-  <tr>
-    <th rowspan="3">Method</th>
-    <th colspan="4">ActivityNet 1.2</th>
-    <th rowspan="3">Download</th>
-  </tr>
-  <tr>
-    <td align="center">mAP@0.5</td>
-    <td align="center">mAP@0.75</td>
-    <td align="center">mAP@0.95</td>
-    <td align="center">mAP@AVG</td>
-  </tr>
-</thead>
-<tbody>
-  <tr>
-    <td align="center"><a href="https://github.com/asrafulashiq/hamnet">HAM-Net</a></td>
-    <td align="center">41.3</td>
-    <td align="center">25.2</td>
-    <td align="center">5.5</td>
-    <td align="center">25.4</td>
-    <td align="center"><a href="https://1drv.ms/u/s!AtyHkt-GdJtIilTBE-4dzLgc3Okw?e=naUsTl">OneDrive</a></td>
-  </tr>
-  <tr>
-    <td align="center"><a href="https://github.com/zhang-can/CoLA">CoLA</a></td>
-    <td align="center">41.0</td>
-    <td align="center">27.5</td>
-    <td align="center">4.2</td>
-    <td align="center">26.4</td>
-    <td align="center"><a href="https://1drv.ms/u/s!AtyHkt-GdJtIilYYT3fWJqCg76g5?e=nSzmUr">OneDrive</a></td>
-  </tr>
-  <tr>
-    <td align="center"><a href="https://github.com/harlanhong/MM2021-CO2-Net">CO<sub>2</sub>-Net</a></td>
-    <td align="center">44.4</td>
-    <td align="center">27.0</td>
-    <td align="center">5.4</td>
-    <td align="center">27.1</td>
-    <td align="center"><a href="https://1drv.ms/u/s!AtyHkt-GdJtIilVBJFZ7mhdg1uM4?e=rx7BKz">OneDrive</a></td>
-  </tr>
-</tbody>
-</table>
-
-mAP@AVG is the average mAP under the thresholds 0.5:0.05:0.95.
