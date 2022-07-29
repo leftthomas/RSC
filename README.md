@@ -3,7 +3,7 @@
 A PyTorch implementation of RSC based on the paper
 [Weakly-supervised Temporal Action Localization with Regional Similarity Consistency]().
 
-![Network Architecture](structure.png)
+![Network Architecture](rsc.png)
 
 ## Usage
 
