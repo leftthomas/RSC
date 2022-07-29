@@ -24,7 +24,7 @@ python main.py --test --ckpt [checkpoint_path]
 
 ## Benchmarks
 
-The models are trained on one NVIDIA GeForce GTX 1080 Ti (11G). All the hyper-parameters are the default values.
+The models are trained on one NVIDIA GeForce GTX 1080 Ti (11G). All the hyper-parameters are the default values. Here we provide the pre-trained models on THUMOS14 dataset.
 
 ### THUMOS14
 
