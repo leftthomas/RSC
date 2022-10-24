@@ -1,6 +1,6 @@
 # RSC
 
-A PyTorch implementation of RSC based on the paper
+A PyTorch implementation of RSC based on MMM 2023 paper
 [Weakly-supervised Temporal Action Localization with Regional Similarity Consistency]().
 
 ![Network Architecture](rsc.png)
